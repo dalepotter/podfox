@@ -51,7 +51,7 @@ In podfox, every podcast is identified with its own `shortname`, which is restri
     podfox.py update [<shortname>]
     podfox.py feeds
     podfox.py episodes <shortname>
-    podfox.py download [<shortname> --how-many=<n>]
+    podfox.py download [<shortname> --how-many=<n>  --save-file-with-date-and-episode-title]
     podfox.py prune [<shortname> --max-age-days=<n>]
 ```
 ### Import 
@@ -108,8 +108,8 @@ Extortion Startups | TechSNAP 229         |  Not Downloaded
 
 `podfox download ts --how-many=3` will download the 3 newest techsnap podcasts that have not yet been downloaded. (Skipping newer, but already downloaded ones). If the `--how-many` parameter is omitted, the `maxnum` parameter from the configuration file is used instead.
 
+`podfox download --save-file-with-date-and-episode-title` will save download episodes using their published date (in the format YYYY-MM-DD) and the episode title - for example `2015-10-22 Episode 237 A Rip in NTP  TechSNAP 237.mp3`.
 
 ### Pruning
 
 `podfox prune` will clean up episodes that are too old.  If a max age is not set via parameter to command or in the configuration, then no pruning is done.
-

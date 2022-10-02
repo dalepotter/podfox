@@ -7,7 +7,7 @@ Usage:
     podfox.py update [<shortname>] [-c=<path>]
     podfox.py feeds [-c=<path>]
     podfox.py episodes <shortname> [-c=<path>]
-    podfox.py download [<shortname> --how-many=<n>] [-c=<path>]
+    podfox.py download [<shortname> --how-many=<n>  --save-file-with-date-and-episode-title] [-c=<path>]
     podfox.py rename <shortname> <newname> [-c=<path>]
     podfox.py prune [<shortname> --maxage-days=<n>]
 
@@ -22,6 +22,8 @@ from colorama import Fore, Back, Style
 from docopt import docopt
 from os.path import expanduser
 from sys import exit
+from time import mktime, localtime, strftime
+from urllib.parse import urlparse
 import colorama
 import datetime
 import feedparser
@@ -219,24 +221,44 @@ def episodes_from_feed(d):
     return episodes
 
 
-def download_multiple(feed, maxnum):
+def download_multiple(feed, maxnum, save_file_with_date_and_episode_title):
     for episode in feed['episodes']:
         if maxnum == 0:
             break
+
+        custom_output_filename = None
+        if save_file_with_date_and_episode_title:
+            # Prepare the output filename
+            title = episode['title']
+            for char in '<>\"|*%?\\/:;':
+                title = title.replace(char, "")
+            title = title.replace("’", "'").replace("—", "-").replace(".", "")
+            # Shorten the title to max 120 characters
+            title = title[:120]
+            extension = os.path.splitext(urlparse(episode['url'])[2])[1]
+            custom_output_filename = "{} {}{}".format(
+                strftime('%Y-%m-%d', localtime(episode['published'])),
+                title,
+                extension
+            )
+
         if not episode['downloaded'] and not episode_too_old(episode, CONFIGURATION['maxage-days']):
-            episode['filename'] = download_single(feed['shortname'], episode['url'])
+            episode['filename'] = download_single(feed['shortname'], episode['url'], custom_output_filename)
             episode['downloaded'] = True
             maxnum -= 1
     overwrite_config(feed)
 
-def download_single(folder, url):
+def download_single(folder, url, custom_output_filename=None):
     print(url)
     base = CONFIGURATION['podcast-directory']
     r = requests.get(url.strip(), stream=True)
-    try:
-        filename = re.findall('filename="([^"]+)', r.headers['content-disposition'])[0]
-    except:
-        filename = get_filename_from_url(url)
+    if custom_output_filename:
+        filename = custom_output_filename
+    else:
+        try:
+            filename = re.findall('filename="([^"]+)', r.headers['content-disposition'])[0]
+        except:
+            filename = get_filename_from_url(url)
     print_green("{:s} downloading".format(filename))
     with open(os.path.join(base, folder, filename), 'wb') as f:
         for chunk in r.iter_content(chunk_size=1024**2):
@@ -393,11 +415,13 @@ def main():
             maxnum = int(arguments['--how-many'])
         else:
             maxnum = CONFIGURATION['maxnum']
+        save_file_with_date_and_episode_title = bool(arguments['--save-file-with-date-and-episode-title'])
+
         #download episodes for a specific feed
         if arguments['<shortname>']:
             feed = find_feed(arguments['<shortname>'])
             if feed:
-                download_multiple(feed, maxnum)
+                download_multiple(feed, maxnum, save_file_with_date_and_episode_title)
                 exit(0)
             else:
                 print_err("feed {} not found".format(arguments['<shortname>']))
@@ -405,7 +429,7 @@ def main():
         #download episodes for all feeds.
         else:
             for feed in available_feeds():
-                download_multiple(feed,  maxnum)
+                download_multiple(feed,  maxnum, save_file_with_date_and_episode_title)
             exit(0)
     if arguments['rename']:
         rename(arguments['<shortname>'], arguments['<newname>'])
